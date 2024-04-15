@@ -21,34 +21,35 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    private final UserDetailsService userDetailsService;
+
+    public SecurityConfig(UserDetailsService userDetailsService) {
+        this.userDetailsService = userDetailsService;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.cors(withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/user-save", "/product/all","/invertors","/adauga_marca",
-                                "/series","/get_marca","/get_serii","delete_marca/{id}",
-                                "/marca/{id}","/update_marca/{id}","/delete_serie/{id}",
-                                "/update_serie/{id}","/serie/{id}","/delete_user/{id}","/users-all","/get_invertori","/delete_invertor/{id}",
-                                "/update_invertor/{id}","/invertors/{id}","/login").permitAll()  // Adaugă toate rutele publice aici
+                        .requestMatchers("/", "/user-save", "/product/all", "/invertors", "/adauga_marca",
+                                "/series", "/get_marca", "/get_serii", "/delete_marca/{id}",
+                                "/marca/{id}", "/update_marca/{id}", "/delete_serie/{id}",
+                                "/update_serie/{id}", "/serie/{id}", "/delete_user/{id}", "/users-all", "/get_invertori", "/delete_invertor/{id}",
+                                "/update_invertor/{id}", "/invertors/{id}", "/login", "/update_user/{id}", "/user/{id}", "/my-profile", "/update-my-profile")
+                        .permitAll()  // Adaugă toate rutele publice aici
                         .anyRequest().authenticated())
-                .addFilterBefore(new JwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthenticationFilter(userDetailsService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
-
-
     @Bean
-    public UserDetailsService userDetailsService(){
-        return new OurUserInfoUserDetailsService();
-    }
-
-    @Bean
-    public DaoAuthenticationProvider authenticationProvider() {
+    public DaoAuthenticationProvider authenticationProvider(PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
-        daoAuthenticationProvider.setUserDetailsService(userDetailsService());
-        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
+        daoAuthenticationProvider.setUserDetailsService(userDetailsService);
+        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder);
         return daoAuthenticationProvider;
     }
 
@@ -56,6 +57,4 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
-
 }

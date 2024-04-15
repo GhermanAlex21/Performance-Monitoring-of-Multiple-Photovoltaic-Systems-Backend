@@ -7,24 +7,22 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Collections;
 
 public class OurUserInfoDetails implements UserDetails {
-    private String email;
+    private String username;
     private String password;
-    private List<GrantedAuthority> roles;
+    private GrantedAuthority role;
 
     public OurUserInfoDetails(OurUser ourUser){
-        this.email = ourUser.getEmail();
+        this.username = ourUser.getUsername();
         this.password = ourUser.getPassword();
-        this.roles = Arrays.stream(ourUser.getRoles().split(","))
-                .map(SimpleGrantedAuthority::new)
-                .collect(Collectors.toList());
+        this.role = new SimpleGrantedAuthority("ROLE_" + ourUser.getRoles()); // Preia rolul ca string și îl prelucrează direct
     }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return this.roles;
+        return Collections.singletonList(this.role); // Returnează o colecție cu un singur element
     }
 
     @Override
@@ -34,7 +32,7 @@ public class OurUserInfoDetails implements UserDetails {
 
     @Override
     public String getUsername() {
-        return this.email;
+        return this.username;
     }
 
     @Override
