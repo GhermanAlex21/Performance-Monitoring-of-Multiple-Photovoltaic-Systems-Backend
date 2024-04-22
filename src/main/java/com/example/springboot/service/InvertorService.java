@@ -30,4 +30,10 @@ public class InvertorService {
         Optional<Invertor> invertorOptional = invertorRepository.findById(id);
         return invertorOptional.orElse(null); // returnează invertorul dacă este găsit sau null dacă nu există
     }
+    public List<Invertor> findBySerieId(Long serieId) {
+        return invertorRepository.findBySerieId(serieId);
+    }
+    public List<Invertor> findByMarcaId(Long marcaId) {
+        return invertorRepository.findByMarcaId(marcaId);
+    }
 }

@@ -13,11 +13,11 @@ public class Invertor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false) // Modificare aici pentru a încărca relația automat
+    @ManyToOne(fetch = FetchType.EAGER, optional = false, cascade = CascadeType.ALL)
     @JoinColumn(name = "id_marca")
     private Marca marca;
 
-    @ManyToOne(fetch = FetchType.EAGER, optional = false) // Modificare aici pentru a încărca relația automat
+    @ManyToOne(fetch = FetchType.EAGER, optional = false, cascade = CascadeType.ALL)
     @JoinColumn(name = "id_serie")
     private Serie serie;
 
