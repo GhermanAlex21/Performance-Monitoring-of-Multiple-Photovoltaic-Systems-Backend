@@ -93,18 +93,23 @@ public class Controller {
     public ResponseEntity<?> deleteUser(@PathVariable Integer id) {
         try {
             OurUser user = userService.getUserById(id);
-            if (user == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+
+            // Încearcă să ștergi utilizatorul din Firebase indiferent dacă este găsit în MySQL
+            firebaseService.deleteUser(id.toString());
+
+            // Dacă utilizatorul este găsit în MySQL, șterge-l și de acolo
+            if (user != null) {
+                userService.deleteUser(id);
+                return ResponseEntity.ok().body("User deleted successfully from both MySQL and Firebase.");
+            } else {
+                // Utilizatorul nu este găsit în MySQL, dar a fost șters din Firebase
+                return ResponseEntity.ok().body("User deleted from Firebase, not found in MySQL.");
             }
-            // Prima dată ștergem utilizatorul din Firebase
-            firebaseService.deleteUser(user.getId().toString());
-            // Apoi ștergem utilizatorul din baza de date locală
-            userService.deleteUser(id);
-            return ResponseEntity.ok().body("User deleted successfully from both MySQL and Firebase.");
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting user: " + e.getMessage());
         }
     }
+
 
     @GetMapping("/user/{id}")
     public ResponseEntity<OurUser> getUserById(@PathVariable Integer id) {
@@ -149,6 +154,8 @@ public class Controller {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred: " + e.getMessage());
         }
     }
+
+
 
 
     @PostMapping("/login")

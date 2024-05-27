@@ -1,10 +1,7 @@
 package com.example.springboot.controller;
 
 import com.example.springboot.model.*;
-import com.example.springboot.service.FirebaseService;
-import com.example.springboot.service.InvertorService;
-import com.example.springboot.service.MarcaService;
-import com.example.springboot.service.SerieService;
+import com.example.springboot.service.*;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
@@ -14,9 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -35,33 +30,44 @@ public class InvertorController {
     @Autowired
     private FirebaseService firebaseService;
 
+    @Autowired
+    private SolarDataService solarDataService;  // Injectăm SolarDataService
+
     @PostMapping("/invertors")
     public ResponseEntity<?> addInvertor(@RequestBody InvertorRequest invertorRequest) {
         try {
-            // Obțineți id-urile seriei și mărcii din obiectul de cerere
             Long serieId = invertorRequest.getSerieId();
             Long marcaId = invertorRequest.getMarcaId();
 
-            // Obțineți obiectele de serie și marcă folosind id-urile
             Serie serie = serieService.findById(serieId);
-            Marca marca = marcaService.findById(marcaId);
-
-            if (serie == null || marca == null) {
-                return ResponseEntity.badRequest().body("Serie or Marca does not exist");
+            if (serie == null) {
+                serie = firebaseService.getSerieById(serieId.toString());
+                if (serie != null) {
+                    serie = serieService.saveSerie(serie);
+                } else {
+                    return ResponseEntity.badRequest().body("Serie does not exist in MySQL or Firebase");
+                }
             }
 
-            // Creați un nou obiect Invertor cu seria și marca corecte
+            Marca marca = marcaService.findById(marcaId);
+            if (marca == null) {
+                marca = firebaseService.getMarcaById(marcaId.toString());
+                if (marca != null) {
+                    marca = marcaService.saveMarca(marca);
+                } else {
+                    return ResponseEntity.badRequest().body("Marca does not exist in MySQL or Firebase");
+                }
+            }
+
             Invertor invertor = new Invertor();
             invertor.setSerie(serie);
             invertor.setMarca(marca);
             invertor.setLatitude(invertorRequest.getLatitude());
             invertor.setLongitude(invertorRequest.getLongitude());
             invertor.setAzimut(invertorRequest.getAzimut());
+            invertor.setPesId(invertorRequest.getPesId()); // Setăm pesId din request
 
-            // Salvarea în MySQL
             Invertor savedInvertor = invertorService.saveInvertor(invertor);
-
-            // Salvarea în Firebase și obținerea timpului de actualizare
             String firebaseUpdateTime = firebaseService.addInvertor(savedInvertor);
 
             return ResponseEntity.ok("Invertor saved successfully in MySQL and Firebase at: " + firebaseUpdateTime);
@@ -69,6 +75,24 @@ public class InvertorController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An error occurred: " + e.getMessage());
         }
     }
+
+    @GetMapping("/invertors/{id}/solar-data") // Endpoint nou pentru a obține datele solare pentru un anumit Invertor
+    public ResponseEntity<List<SolarData>> getSolarDataForInvertor(@PathVariable Long id) {
+        try {
+            Invertor invertor = invertorService.findById(id);
+            if (invertor != null) {
+                List<SolarData> solarData = solarDataService.getSolarDataByPesId(invertor.getPesId());
+                return new ResponseEntity<>(solarData, HttpStatus.OK);
+            } else {
+                // Returnează o listă goală cu status NOT FOUND
+                return new ResponseEntity<>(Collections.emptyList(), HttpStatus.NOT_FOUND);
+            }
+        } catch (Exception e) {
+            // Logica de error handling rămâne neschimbată
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.emptyList());
+        }
+    }
+
 
     @GetMapping("/get_invertori") // Endpoint pentru a obține toți invertorii
     public ResponseEntity<List<Invertor>> getAllInvertors() {
@@ -86,22 +110,28 @@ public class InvertorController {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
     @DeleteMapping("/delete_invertor/{id}")
     public ResponseEntity<?> deleteInvertor(@PathVariable Long id) {
         try {
             Invertor invertor = invertorService.findById(id);
-            if (invertor == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Invertor not found");
-            }
-            // Prima dată ștergem invertorul din Firebase
+
+            // Încearcă să ștergi invertorul din Firebase indiferent dacă este găsit în MySQL
             firebaseService.deleteInvertor(id.toString());
-            // Apoi ștergem invertorul din baza de date locală
-            invertorService.deleteInvertor(id);
-            return ResponseEntity.ok().body("Invertor deleted successfully from both MySQL and Firebase.");
+
+            // Dacă invertorul este găsit în MySQL, șterge-l și de acolo
+            if (invertor != null) {
+                invertorService.deleteInvertor(id);
+                return ResponseEntity.ok().body("Invertor deleted successfully from both MySQL and Firebase.");
+            } else {
+                // Invertorul nu este găsit în MySQL, dar a fost șters din Firebase
+                return ResponseEntity.ok().body("Invertor deleted from Firebase, not found in MySQL.");
+            }
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting invertor: " + e.getMessage());
         }
     }
+
 
     @GetMapping("/invertors/{id}") // Endpoint pentru a obține un invertor după ID
     public ResponseEntity<Invertor> getInvertorById(@PathVariable Long id) {
@@ -130,6 +160,7 @@ public class InvertorController {
             existingInvertor.setLatitude(updatedInvertorRequest.getLatitude());
             existingInvertor.setLongitude(updatedInvertorRequest.getLongitude());
             existingInvertor.setAzimut(updatedInvertorRequest.getAzimut());
+            existingInvertor.setPesId(updatedInvertorRequest.getPesId());
 
             // Salvăm invertorul actualizat în baza de date
             Invertor updatedInvertor = invertorService.saveInvertor(existingInvertor);
@@ -138,5 +169,18 @@ public class InvertorController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND); // Returnăm un răspuns cu statusul HTTP 404 Not Found dacă invertorul nu este găsit
         }
     }
+
+    @GetMapping("/compare")
+    public ResponseEntity<Map<String, Map<String, Object>>> compareInvertors(@RequestParam Long id1, @RequestParam Long id2) {
+        try {
+            Map<String, Map<String, Object>> comparisonData = invertorService.compareInvertors(id1, id2);
+            return ResponseEntity.ok(comparisonData);
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
 
 }

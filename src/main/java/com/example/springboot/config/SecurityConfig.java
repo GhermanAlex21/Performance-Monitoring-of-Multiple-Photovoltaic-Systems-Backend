@@ -38,7 +38,8 @@ public class SecurityConfig {
                                 "/series", "/get_marca", "/get_serii", "/delete_marca/{id}",
                                 "/marca/{id}", "/update_marca/{id}", "/delete_serie/{id}",
                                 "/update_serie/{id}", "/serie/{id}", "/delete_user/{id}", "/users-all", "/get_invertori", "/delete_invertor/{id}",
-                                "/update_invertor/{id}", "/invertors/{id}", "/login", "/update_user/{id}", "/user/{id}", "/my-profile", "/update-my-profile")
+                                "/update_invertor/{id}", "/invertors/{id}", "/login", "/update_user/{id}", "/user/{id}", "/my-profile", "/update-my-profile",
+                                "/fetch-solar-data","/monthly/{pesId}","/weekly/{pesId}","/daily/{pesId}","/invertors/{id}/solar-data","/compare")
                         .permitAll()  // Adaugă toate rutele publice aici
                         .anyRequest().authenticated())
                 .addFilterBefore(new JwtAuthenticationFilter(userDetailsService), UsernamePasswordAuthenticationFilter.class);

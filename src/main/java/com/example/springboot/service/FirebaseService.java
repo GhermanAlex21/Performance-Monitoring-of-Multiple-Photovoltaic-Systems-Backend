@@ -1,20 +1,26 @@
 package com.example.springboot.service;
 
-import com.example.springboot.model.Invertor;
-import com.example.springboot.model.Marca;
-import com.example.springboot.model.OurUser;
-import com.example.springboot.model.Serie;
+import com.example.springboot.model.*;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.*;
 import com.google.firebase.cloud.FirestoreClient;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Service
 public class FirebaseService {
+    private Firestore db = FirestoreClient.getFirestore();
 
     public String addUser(OurUser user) throws ExecutionException, InterruptedException {
         Firestore db = FirestoreClient.getFirestore();
@@ -84,6 +90,7 @@ public class FirebaseService {
         ApiFuture<WriteResult> result = db.collection("invertors").document(invertor.getId().toString()).set(invertor);
         return result.get().getUpdateTime().toString(); // Returnează timestamp-ul actualizării
     }
+
     public String updateMarca(Marca marca) throws ExecutionException, InterruptedException {
         Firestore db = FirestoreClient.getFirestore();
         // Asigură-te că clasa Marca are gettere și settere pentru toate proprietățile care trebuie să fie serializate în Firestore.
@@ -139,5 +146,146 @@ public class FirebaseService {
         ApiFuture<QuerySnapshot> query = db.collection("users").get();
         List<QueryDocumentSnapshot> documents = query.get().getDocuments();
         return documents.stream().map(doc -> doc.toObject(OurUser.class)).collect(Collectors.toList());
+    }
+
+    public boolean existsSerie(Long serieId) {
+        try {
+            DocumentSnapshot document = firestore.collection("serii").document(String.valueOf(serieId)).get().get();
+            return document.exists();
+        } catch (Exception e) {
+            System.err.println("Error checking if serie exists: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean existsMarca(Long marcaId) {
+        try {
+            DocumentSnapshot document = firestore.collection("marci").document(String.valueOf(marcaId)).get().get();
+            return document.exists();
+        } catch (Exception e) {
+            System.err.println("Error checking if marca exists: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public void saveSolarData(SolarData solarData) {
+        Firestore db = FirestoreClient.getFirestore();
+        DocumentReference pesRef = db.collection("solarData").document(String.valueOf(solarData.getPesId()));
+
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("generation_mw", solarData.getGenerationMW());
+        dataMap.put("datetime_gmt", solarData.getDatetimeGMT().toString());
+
+        try {
+            // Salvează data în subcolecția "records" a documentului corespunzător pes_id
+            ApiFuture<WriteResult> writeResult = pesRef.collection("records")
+                    .document(solarData.getDatetimeGMT().format(DateTimeFormatter.ISO_DATE_TIME))
+                    .set(dataMap);
+
+            // Așteaptă pentru a confirma operațiunea
+            System.out.println("Data saved for PES ID " + solarData.getPesId() + " at " + writeResult.get().getUpdateTime());
+        } catch (ExecutionException e) {
+            System.err.println("Error saving data to Firebase: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();  // Restore the interrupted status
+            System.err.println("Thread interrupted while saving data to Firebase.");
+        }
+    }
+    public void saveDailyAverage(int pesId, LocalDate date, double average) {
+        db.collection("solarData").document(String.valueOf(pesId))
+                .collection("dailyAverages").document(date.toString())
+                .set(Map.of("average_generation_mw", average));
+    }
+
+    public void saveMonthlyAverage(int pesId, YearMonth month, double average) {
+        db.collection("solarData").document(String.valueOf(pesId))
+                .collection("monthlyAverages").document(month.toString())
+                .set(Map.of("average_generation_mw", average));
+    }
+    public void saveWeeklyAverage(int pesId, int weekOfYear, double average, LocalDate startDate) {
+        // Calculate the end date of the week
+        LocalDate endDate = startDate.plusDays(6); // Assuming the week starts on the provided date and ends 6 days later
+
+        // Use the startDate and endDate to create a range string
+        String dateRange = startDate.toString() + " to " + endDate.toString();
+
+        // Save the average under a document named after the date range
+        db.collection("solarData").document(String.valueOf(pesId))
+                .collection("weeklyAverages").document(dateRange)
+                .set(Map.of("average_generation_mw", average));
+    }
+    public Map<LocalDate, Double> getDailyAverages(int pesId) throws ExecutionException, InterruptedException {
+        Map<LocalDate, Double> averages = new HashMap<>();
+        List<QueryDocumentSnapshot> documents = db.collection("solarData")
+                .document(String.valueOf(pesId))
+                .collection("dailyAverages")
+                .get()
+                .get()
+                .getDocuments();
+
+        for (QueryDocumentSnapshot document : documents) {
+            averages.put(LocalDate.parse(document.getId()), document.getDouble("average_generation_mw"));
+        }
+
+        return averages;
+    }
+
+    public Map<String, Double> getWeeklyAverages(int pesId) throws ExecutionException, InterruptedException {
+        Map<String, Double> averages = new HashMap<>();
+        List<QueryDocumentSnapshot> documents = db.collection("solarData")
+                .document(String.valueOf(pesId))
+                .collection("weeklyAverages")
+                .get()
+                .get()
+                .getDocuments();
+
+        for (QueryDocumentSnapshot document : documents) {
+            String dateRange = document.getId(); // The ID is now a date range
+            double average = document.getDouble("average_generation_mw");
+            averages.put(dateRange, average);
+        }
+
+        return averages;
+    }
+
+    public Map<YearMonth, Double> getMonthlyAverages(int pesId) throws ExecutionException, InterruptedException {
+        Map<YearMonth, Double> averages = new HashMap<>();
+        List<QueryDocumentSnapshot> documents = db.collection("solarData")
+                .document(String.valueOf(pesId))
+                .collection("monthlyAverages")
+                .get()
+                .get()
+                .getDocuments();
+
+        for (QueryDocumentSnapshot document : documents) {
+            averages.put(YearMonth.parse(document.getId()), document.getDouble("average_generation_mw"));
+        }
+
+        return averages;
+    }
+    public void saveComparisonData(int pesId, Map<String, Object> comparisonData) {
+        db.collection("solarData").document(String.valueOf(pesId))
+                .collection("comparisonData").document("latest")
+                .set(comparisonData);
+    }
+
+    public Map<String, Object> getComparisonData(int pesId) throws ExecutionException, InterruptedException {
+        DocumentSnapshot document = db.collection("solarData")
+                .document(String.valueOf(pesId))
+                .collection("comparisonData").document("latest")
+                .get()
+                .get();
+
+        if (document.exists()) {
+            return document.getData();
+        } else {
+            return new HashMap<>();
+        }
+    }
+
+    private Firestore firestore;
+
+    public FirebaseService() {
+        this.firestore = FirestoreClient.getFirestore();
     }
 }

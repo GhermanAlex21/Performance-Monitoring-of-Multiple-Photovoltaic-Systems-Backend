@@ -54,17 +54,18 @@ public class SerieController {
     public ResponseEntity<?> deleteSerie(@PathVariable Long id) {
         try {
             Serie serie = serieService.findById(id);
-            if (serie == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Serie not found");
-            }
 
-            // Șterge seria din Firestore
+            // Indiferent dacă seria este găsită sau nu în MySQL, încearcă să o ștergi din Firebase
             firebaseService.deleteSerie(String.valueOf(id));
 
-            // Actualizează starea seriilor și a invertorilor legați de aceasta în baza de date locală
-            serieService.deleteSerie(id);
-
-            return ResponseEntity.ok().body("Serie and related invertors deleted from both MySQL and Firebase.");
+            // Dacă seria este găsită în MySQL, șterge-o și de acolo
+            if (serie != null) {
+                serieService.deleteSerie(id);
+                return ResponseEntity.ok().body("Serie and related invertors deleted from both MySQL and Firebase.");
+            } else {
+                // Serie nu este găsită în MySQL, dar a fost ștearsă din Firebase
+                return ResponseEntity.ok().body("Serie deleted from Firebase, not found in MySQL.");
+            }
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting serie: " + e.getMessage());
         }

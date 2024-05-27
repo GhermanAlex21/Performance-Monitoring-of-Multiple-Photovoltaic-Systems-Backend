@@ -1,14 +1,11 @@
 package com.example.springboot.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
+import java.util.List;
 
 @Entity
 @Table(name = "invertor")
 public class Invertor {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -30,19 +27,20 @@ public class Invertor {
     @Column(name = "azimut")
     private double azimut;
 
-    // Constructori
-    public Invertor() {
-    }
+    @Column(name = "pes_id", unique = true)
+    private Integer pesId;  // Acest câmp va fi folosit pentru a corela invertorul cu datele solare
 
-    public Invertor(Marca marca, Serie serie, double latitude, double longitude, double azimut) {
+    public Invertor() {}
+
+    public Invertor(Marca marca, Serie serie, double latitude, double longitude, double azimut, Integer pesId) {
         this.marca = marca;
         this.serie = serie;
         this.latitude = latitude;
         this.longitude = longitude;
         this.azimut = azimut;
+        this.pesId = pesId;
     }
 
-    // Getteri și setteri
     public Long getId() {
         return id;
     }
@@ -89,5 +87,13 @@ public class Invertor {
 
     public void setAzimut(double azimut) {
         this.azimut = azimut;
+    }
+
+    public Integer getPesId() {
+        return pesId;
+    }
+
+    public void setPesId(Integer pesId) {
+        this.pesId = pesId;
     }
 }

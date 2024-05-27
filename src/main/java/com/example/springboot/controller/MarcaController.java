@@ -1,9 +1,6 @@
 package com.example.springboot.controller;
 
-import com.example.springboot.model.Invertor;
-import com.example.springboot.model.Marca;
-import com.example.springboot.model.ResponseMessage;
-import com.example.springboot.model.Serie;
+import com.example.springboot.model.*;
 import com.example.springboot.service.FirebaseService;
 import com.example.springboot.service.InvertorService;
 import com.example.springboot.service.MarcaService;
@@ -54,18 +51,23 @@ public class MarcaController {
     public ResponseEntity<?> deleteMarca(@PathVariable Long id) {
         try {
             Marca marca = marcaService.findById(id);
-            if (marca == null) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Marca not found");
-            }
-            // Prima dată ștergem marca din Firebase
+
+            // Încearcă să ștergi marca din Firebase indiferent dacă este găsită în MySQL
             firebaseService.deleteMarca(id.toString());
-            // Apoi ștergem marca din baza de date locală
-            marcaService.deleteMarca(id);
-            return ResponseEntity.ok().body("Marca deleted successfully from both MySQL and Firebase.");
+
+            // Dacă marca este găsită în MySQL, șterge-o și de acolo
+            if (marca != null) {
+                marcaService.deleteMarca(id);
+                return ResponseEntity.ok().body("Marca deleted successfully from both MySQL and Firebase.");
+            } else {
+                // Marca nu este găsită în MySQL, dar a fost ștearsă din Firebase
+                return ResponseEntity.ok().body("Marca deleted from Firebase, not found in MySQL.");
+            }
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting marca: " + e.getMessage());
         }
     }
+
     @GetMapping("/marca/{id}")
     public ResponseEntity<Marca> getMarcaById(@PathVariable Long id) {
         try {
@@ -109,6 +111,7 @@ public class MarcaController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error updating marca: " + e.getMessage());
         }
     }
+
 
     private void updateInvertorsForMarca(Long marcaId, Marca updatedMarca) throws ExecutionException, InterruptedException {
         List<Invertor> invertors = invertorService.findByMarcaId(marcaId);
